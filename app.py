@@ -68,8 +68,22 @@ class ImgFinder(HTMLParser):
                 self.imgs.append(src)
 
 
+REQUEST_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "image/avif,image/webp,*/*;q=0.8"
+    ),
+    "Accept-Language": "sr-RS,sr;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Referer": "https://www.pudecjidani.rs/",
+}
+
+
 def fetch_html(url: str) -> str:
-    req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    req = Request(url, headers=REQUEST_HEADERS)
     with urlopen(req, timeout=15) as resp:
         charset = resp.headers.get_content_charset() or "utf-8"
         return resp.read().decode(charset, errors="replace")
@@ -128,6 +142,41 @@ def jelovnik_vrtic():
 @app.route("/")
 def health():
     return {"status": "ok", "cached_url": _cache["url"]}
+
+
+@app.route("/debug")
+def debug():
+    """Pokazuje šta server stvarno vidi — korisno za dijagnostiku ako scraping ne uspe."""
+    out = {"base_url": BASE_URL}
+    try:
+        html = fetch_html(BASE_URL)
+        out["homepage_len"] = len(html)
+        parser = LinkFinder()
+        parser.feed(html)
+        out["homepage_link_count"] = len(parser.links)
+        # svi linkovi čiji tekst sadrži bilo šta slično "Јеловник" (case-insensitive, širi filter)
+        out["links_sample"] = [t for (h, t) in parser.links if t][:40]
+        jelovnik_url = None
+        for href, text in parser.links:
+            if text == LINK_TEXT and href:
+                jelovnik_url = urljoin(BASE_URL, href)
+                break
+        if not jelovnik_url:
+            for href, text in parser.links:
+                if LINK_TEXT in text and href:
+                    jelovnik_url = urljoin(BASE_URL, href)
+                    break
+        out["jelovnik_page_url"] = jelovnik_url
+
+        if jelovnik_url:
+            page_html = fetch_html(jelovnik_url)
+            out["jelovnik_page_len"] = len(page_html)
+            img_parser = ImgFinder()
+            img_parser.feed(page_html)
+            out["img_srcs"] = img_parser.imgs[:40]
+    except Exception as e:
+        out["error"] = f"{type(e).__name__}: {e}"
+    return out
 
 
 if __name__ == "__main__":
