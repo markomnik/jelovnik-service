@@ -231,19 +231,11 @@ def extract_menu_table_freeai(image_bytes: bytes) -> dict:
     if not FREE_AI_API_KEY:
         raise RuntimeError("FREE_AI_API_KEY nije podešen u environment varijablama.")
 
-    b64 = base64.b64encode(image_bytes).decode("ascii")
-
     resp = requests.post(
         "https://api.free.ai/v1/ocr/",
-        headers={
-            "Authorization": f"Bearer {FREE_AI_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "image": f"data:image/jpeg;base64,{b64}",
-            "language": "auto",
-            "output_format": "json",
-        },
+        headers={"Authorization": f"Bearer {FREE_AI_API_KEY}"},
+        files={"image": ("jelovnik.jpg", image_bytes, "image/jpeg")},
+        data={"language": "auto", "output_format": "json"},
         timeout=60,
     )
     resp.raise_for_status()
@@ -418,11 +410,11 @@ def debug_ocr():
         if OCR_PROVIDER == "freeai":
             if not FREE_AI_API_KEY:
                 return jsonify({"greska": "FREE_AI_API_KEY nije podešen."}), 500
-            b64 = base64.b64encode(img_bytes).decode("ascii")
             resp = requests.post(
                 "https://api.free.ai/v1/ocr/",
-                headers={"Authorization": f"Bearer {FREE_AI_API_KEY}", "Content-Type": "application/json"},
-                json={"image": f"data:image/jpeg;base64,{b64}", "language": "auto", "output_format": "json"},
+                headers={"Authorization": f"Bearer {FREE_AI_API_KEY}"},
+                files={"image": ("jelovnik.jpg", img_bytes, "image/jpeg")},
+                data={"language": "auto", "output_format": "json"},
                 timeout=60,
             )
             out["status_code"] = resp.status_code
