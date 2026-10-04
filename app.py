@@ -109,8 +109,9 @@ def find_vrtic_image_url() -> str | None:
     html = fetch_html(page_url)
     parser = ImgFinder()
     parser.feed(html)
+    hint_lower = IMG_HINT.lower()
     for src in parser.imgs:
-        if IMG_HINT in src:
+        if hint_lower in src.lower():
             return urljoin(page_url, src)
     return None
 
