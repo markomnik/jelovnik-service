@@ -407,6 +407,11 @@ def debug_ocr():
     out = {"provider": OCR_PROVIDER, "image_url": url}
     try:
         img_bytes = download_image_bytes(url)
+        out["image_bytes_len"] = len(img_bytes)
+        out["image_magic_hex"] = img_bytes[:8].hex()
+        out["looks_like_jpeg"] = img_bytes[:3] == b"\xff\xd8\xff"
+        if not out["looks_like_jpeg"]:
+            out["first_200_bytes_as_text"] = img_bytes[:200].decode("utf-8", errors="replace")
         if OCR_PROVIDER == "freeai":
             if not FREE_AI_API_KEY:
                 return jsonify({"greska": "FREE_AI_API_KEY nije podešen."}), 500
