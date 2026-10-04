@@ -21,7 +21,7 @@ import os
 import time
 from html.parser import HTMLParser
 from urllib.request import Request, urlopen
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit, urlunsplit, quote
 
 import requests
 from flask import Flask, redirect, abort, jsonify
@@ -96,6 +96,15 @@ REQUEST_HEADERS = {
 }
 
 
+def quote_url(url: str) -> str:
+    """Percent-enkoduje ne-ASCII karaktere (npr. ćirilicu) u putanji/query-ju URL-a,
+    da bi bio bezbedan za HTTP zahteve i za Location header u redirect-u."""
+    parts = urlsplit(url)
+    path = quote(parts.path, safe="/%")
+    query = quote(parts.query, safe="=&%")
+    return urlunsplit((parts.scheme, parts.netloc, path, query, parts.fragment))
+
+
 def fetch_html(url: str) -> str:
     req = Request(url, headers=REQUEST_HEADERS)
     with urlopen(req, timeout=15) as resp:
@@ -126,7 +135,7 @@ def find_vrtic_image_url() -> str | None:
     hint_lower = IMG_HINT.lower()
     for src in parser.imgs:
         if hint_lower in src.lower():
-            return urljoin(page_url, src)
+            return quote_url(urljoin(page_url, src))
     return None
 
 
