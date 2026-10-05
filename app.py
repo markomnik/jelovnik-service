@@ -16,25 +16,50 @@ Deploy: vidi DEPLOY.md
 """
 
 import base64
+import hmac
 import json
 import os
 import time
+from functools import wraps
 from html.parser import HTMLParser
 from urllib.request import Request, urlopen
 from urllib.parse import urljoin, urlsplit, urlunsplit, quote
 
 import requests
-from flask import Flask, redirect, abort, jsonify
+from flask import Flask, redirect, abort, jsonify, request
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
 
 
+ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "*")  # po želji suzi na konkretan origin stranice
+ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN")  # ako nije podešen, /debug* endpointi su potpuno ugašeni
+
+
 @app.after_request
-def add_cors_headers(resp):
-    resp.headers["Access-Control-Allow-Origin"] = "*"
+def add_security_headers(resp):
+    resp.headers["Access-Control-Allow-Origin"] = ALLOWED_ORIGIN
     resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
     resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Referrer-Policy"] = "no-referrer-when-downgrade"
     return resp
+
+
+limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["60 per hour"])
+
+
+def require_admin(fn):
+    """Štiti skupe/interne endpoint-e: bez tačnog tokena, endpoint se ponaša kao da ne postoji."""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        token = request.args.get("token") or request.headers.get("X-Admin-Token", "")
+        if not ADMIN_TOKEN or not hmac.compare_digest(token, ADMIN_TOKEN):
+            abort(404)
+        return fn(*args, **kwargs)
+    return wrapper
 
 BASE_URL = "https://www.pudecjidani.rs/"
 LINK_TEXT = "Јеловник"
@@ -471,6 +496,8 @@ def health():
 
 
 @app.route("/debug-ocr")
+@require_admin
+@limiter.limit("5 per hour")
 def debug_ocr():
     """Prikazuje sirov odgovor OCR provajdera i rezultat mapiranja, za dijagnostiku."""
     out = {"provider": OCR_PROVIDER}
@@ -526,6 +553,7 @@ def debug_ocr():
 
 
 @app.route("/debug")
+@require_admin
 def debug():
     """Pokazuje šta server stvarno vidi — korisno za dijagnostiku ako scraping ne uspe."""
     out = {"base_url": BASE_URL}
