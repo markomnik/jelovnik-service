@@ -465,12 +465,13 @@ def health():
 @app.route("/debug-ocr")
 def debug_ocr():
     """Prikazuje sirov odgovor OCR provajdera i rezultat mapiranja, za dijagnostiku."""
-    url = resolve_cached_url()
-    if not url:
-        return jsonify({"greska": "Jelovnik slika trenutno nije pronađena."}), 404
-
-    out = {"provider": OCR_PROVIDER, "image_url": url}
+    out = {"provider": OCR_PROVIDER}
     try:
+        url = resolve_cached_url()
+        out["image_url"] = url
+        if not url:
+            return jsonify({**out, "greska": "Jelovnik slika trenutno nije pronađena."}), 404
+
         img_bytes = download_image_bytes(url)
         out["image_bytes_len"] = len(img_bytes)
         out["image_magic_hex"] = img_bytes[:8].hex()
