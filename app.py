@@ -477,7 +477,9 @@ def jelovnik_vrtic_danas():
     if not url:
         return jsonify({"greska": "Jelovnik trenutno nije pronađen na sajtu."}), 404
 
-    weekday_idx = time.localtime().tm_wday  # 0=Pon ... 6=Ned
+    # Vremenska zona Beograda
+    tz = ZoneInfo("Europe/Belgrade")
+    weekday_idx = datetime.now(tz).weekday()  # 0=Pon ... 6=Ned
     dan = DANI[weekday_idx]
 
     if weekday_idx >= 5:  # Subota / Nedelja
