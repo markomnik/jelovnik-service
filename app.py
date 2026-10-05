@@ -9,6 +9,7 @@ pri svakom otvaranju naše stranice.
 
 Pokretanje lokalno:
     pip install flask
+    
     python3 app.py
     # zatim otvori http://localhost:8000/jelovnik/vrtic
 
@@ -29,6 +30,8 @@ import requests
 from flask import Flask, redirect, abort, jsonify, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 app = Flask(__name__)
 
