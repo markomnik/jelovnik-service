@@ -37,9 +37,10 @@ TABLE_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60  # 7 dana - tabela se menja samo jedn
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5")
 
-# OCR_PROVIDER: "anthropic" (podrazumevano) ili "freeai"
+# OCR_PROVIDER: "anthropic" (podrazumevano), "freeai" ili "freeocr"
 OCR_PROVIDER = os.environ.get("OCR_PROVIDER", "anthropic").lower()
 FREE_AI_API_KEY = os.environ.get("FREE_AI_API_KEY")
+FREEOCR_API_KEY = os.environ.get("FREEOCR_API_KEY")
 
 DANI = ["Ponedeljak", "Utorak", "Sreda", "Četvrtak", "Petak", "Subota", "Nedelja"]
 
@@ -149,7 +150,71 @@ def extract_menu_table(image_bytes: bytes) -> dict:
     """Dispečer: šalje sliku odabranom OCR provajderu i vraća {"Ponedeljak": {...}, ...}."""
     if OCR_PROVIDER == "freeai":
         return extract_menu_table_freeai(image_bytes)
+    if OCR_PROVIDER == "freeocr":
+        return extract_menu_table_freeocr(image_bytes)
     return extract_menu_table_anthropic(image_bytes)
+
+
+class TableGridParser(HTMLParser):
+    """Parsira <table> HTML (iz freeocr.ai odgovora) u listu redova/ćelija."""
+
+    def __init__(self):
+        super().__init__()
+        self.grid = []
+        self._row = None
+        self._in_cell = False
+        self._cell_text = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "tr":
+            self._row = []
+        elif tag in ("td", "th"):
+            self._in_cell = True
+            self._cell_text = []
+
+    def handle_data(self, data):
+        if self._in_cell:
+            self._cell_text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag in ("td", "th"):
+            self._in_cell = False
+            if self._row is not None:
+                self._row.append("".join(self._cell_text).strip())
+        elif tag == "tr":
+            if self._row is not None:
+                self.grid.append(self._row)
+            self._row = None
+
+
+def html_table_to_grid(html: str) -> list[list[str]]:
+    p = TableGridParser()
+    p.feed(html)
+    return p.grid
+
+
+def extract_menu_table_freeocr(image_bytes: bytes) -> dict:
+    """Šalje sliku freeocr.ai Table API-ju (dobro dokumentovan) i mapira na naš oblik."""
+    if not FREEOCR_API_KEY:
+        raise RuntimeError("FREEOCR_API_KEY nije podešen u environment varijablama.")
+
+    resp = requests.post(
+        "https://freeocr.ai/api/v1/platform/table",
+        headers={"Authorization": f"Bearer {FREEOCR_API_KEY}"},
+        params={"format": "json"},
+        files={"image": ("jelovnik.jpg", image_bytes, "image/jpeg")},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    tables = data.get("tables") or []
+    if not tables:
+        raise ValueError("freeocr.ai nije pronašao nijednu tabelu na slici.")
+
+    # Ako ima više tabela na slici, uzmi najveću (najviše <tr>) - verovatno glavna tabela jelovnika
+    best_html = max(tables, key=lambda t: (t.get("html") or "").count("<tr")).get("html", "")
+    grid = html_table_to_grid(best_html)
+    return _grid_to_menu(grid)
 
 
 DAN_HINTS = {
@@ -426,6 +491,22 @@ def debug_ocr():
             out["raw_response"] = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else resp.text[:2000]
             try:
                 out["mapped"] = extract_menu_table_freeai(img_bytes)
+            except Exception as e:
+                out["mapping_error"] = str(e)
+        elif OCR_PROVIDER == "freeocr":
+            if not FREEOCR_API_KEY:
+                return jsonify({"greska": "FREEOCR_API_KEY nije podešen."}), 500
+            resp = requests.post(
+                "https://freeocr.ai/api/v1/platform/table",
+                headers={"Authorization": f"Bearer {FREEOCR_API_KEY}"},
+                params={"format": "json"},
+                files={"image": ("jelovnik.jpg", img_bytes, "image/jpeg")},
+                timeout=60,
+            )
+            out["status_code"] = resp.status_code
+            out["raw_response"] = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else resp.text[:2000]
+            try:
+                out["mapped"] = extract_menu_table_freeocr(img_bytes)
             except Exception as e:
                 out["mapping_error"] = str(e)
         else:
