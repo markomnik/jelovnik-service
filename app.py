@@ -77,6 +77,25 @@ FREEOCR_API_KEY = os.environ.get("FREEOCR_API_KEY")
 
 DANI = ["Ponedeljak", "Utorak", "Sreda", "Četvrtak", "Petak", "Subota", "Nedelja"]
 
+_CYR2LAT = {
+    "А": "A", "а": "a", "Б": "B", "б": "b", "В": "V", "в": "v", "Г": "G", "г": "g",
+    "Д": "D", "д": "d", "Ђ": "Đ", "ђ": "đ", "Е": "E", "е": "e", "Ж": "Ž", "ж": "ž",
+    "З": "Z", "з": "z", "И": "I", "и": "i", "Ј": "J", "ј": "j", "К": "K", "к": "k",
+    "Л": "L", "л": "l", "М": "M", "м": "m", "Н": "N", "н": "n", "О": "O", "о": "o",
+    "П": "P", "п": "p", "Р": "R", "р": "r", "С": "S", "с": "s", "Т": "T", "т": "t",
+    "Ћ": "Ć", "ћ": "ć", "У": "U", "у": "u", "Ф": "F", "ф": "f", "Х": "H", "х": "h",
+    "Ц": "C", "ц": "c", "Ч": "Č", "ч": "č", "Ш": "Š", "ш": "š",
+    "Љ": "Lj", "љ": "lj", "Њ": "Nj", "њ": "nj", "Џ": "Dž", "џ": "dž",
+}
+
+
+def cyr_to_lat(text: str) -> str:
+    """Prevodi srpsku ćirilicu u latinicu, karakter po karakter (digrafi lj/nj/dž uključeni).
+    Karakteri van mape (brojevi, interpunkcija, latinica) ostaju nepromenjeni."""
+    if not text:
+        return text
+    return "".join(_CYR2LAT.get(ch, ch) for ch in text)
+
 _cache = {"url": None, "ts": 0, "table": None, "table_ts": 0, "table_for_url": None}
 
 
@@ -182,10 +201,15 @@ def download_image_bytes(url: str) -> bytes:
 def extract_menu_table(image_bytes: bytes) -> dict:
     """Dispečer: šalje sliku odabranom OCR provajderu i vraća {"Ponedeljak": {...}, ...}."""
     if OCR_PROVIDER == "freeai":
-        return extract_menu_table_freeai(image_bytes)
-    if OCR_PROVIDER == "freeocr":
-        return extract_menu_table_freeocr(image_bytes)
-    return extract_menu_table_anthropic(image_bytes)
+        table = extract_menu_table_freeai(image_bytes)
+    elif OCR_PROVIDER == "freeocr":
+        table = extract_menu_table_freeocr(image_bytes)
+    else:
+        table = extract_menu_table_anthropic(image_bytes)
+
+    # Sigurnosna mreža: transliteracija se već radi u _grid_to_menu, ali ovo
+    # pokriva i Anthropic provajder (koji vraća JSON direktno, bez prolaska kroz grid).
+    return {day: {meal: cyr_to_lat(val) for meal, val in meals.items()} for day, meals in table.items()}
 
 
 class TableGridParser(HTMLParser):
@@ -304,7 +328,7 @@ def _grid_to_menu(grid: list[list[str]]) -> dict:
             for c_idx, cell in enumerate(row):
                 day = days_in_row.get(c_idx)
                 if day:
-                    result[day][meal] = (cell or "").strip()
+                    result[day][meal] = cyr_to_lat((cell or "").strip())
         return result
 
     # obrnuto: dani su redovi (header kolona), obroci su kolone (header red)
@@ -318,7 +342,7 @@ def _grid_to_menu(grid: list[list[str]]) -> dict:
             for c_idx, cell in enumerate(row):
                 meal = meals_in_row.get(c_idx)
                 if meal:
-                    result[day][meal] = (cell or "").strip()
+                    result[day][meal] = cyr_to_lat((cell or "").strip())
         return result
 
     raise ValueError("Nisam uspeo da prepoznam raspored dana/obroka u OCR tabeli.")
