@@ -9,7 +9,6 @@ pri svakom otvaranju naše stranice.
 
 Pokretanje lokalno:
     pip install flask
-    
     python3 app.py
     # zatim otvori http://localhost:8000/jelovnik/vrtic
 
@@ -21,8 +20,10 @@ import hmac
 import json
 import os
 import time
+from datetime import datetime
 from functools import wraps
 from html.parser import HTMLParser
+from zoneinfo import ZoneInfo
 from urllib.request import Request, urlopen
 from urllib.parse import urljoin, urlsplit, urlunsplit, quote
 
@@ -30,8 +31,6 @@ import requests
 from flask import Flask, redirect, abort, jsonify, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
 app = Flask(__name__)
 
@@ -52,6 +51,9 @@ def add_security_headers(resp):
 
 
 limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["60 per hour"])
+
+from calendar_routes import calendar_bp  # noqa: E402  (Google Calendar endpointi)
+app.register_blueprint(calendar_bp)
 
 
 def require_admin(fn):
@@ -480,9 +482,9 @@ def jelovnik_vrtic_danas():
     if not url:
         return jsonify({"greska": "Jelovnik trenutno nije pronađen na sajtu."}), 404
 
-    # Vremenska zona Beograda
-    tz = ZoneInfo("Europe/Belgrade")
-    weekday_idx = datetime.now(tz).weekday()  # 0=Pon ... 6=Ned
+    # Server (Render) radi po UTC-u, a dan treba da se menja po srpskoj ponoći,
+    # ne po UTC ponoći - zato eksplicitno računamo po Europe/Belgrade zoni.
+    weekday_idx = datetime.now(ZoneInfo("Europe/Belgrade")).weekday()  # 0=Pon ... 6=Ned
     dan = DANI[weekday_idx]
 
     if weekday_idx >= 5:  # Subota / Nedelja
