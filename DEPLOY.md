@@ -44,6 +44,44 @@
    `calendar_routes.py`). Sve tri Google vrednosti su tajne - samo u Render
    Environment, nikad u repozitorijum.
 
+   Telegram bot (pozivnice -> kalendar):
+   - `TELEGRAM_BOT_TOKEN` = token od @BotFather (`/newbot`)
+   - `TELEGRAM_WEBHOOK_SECRET` = tajni string, samo slova, brojevi, `_` i `-`
+     (npr. `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`)
+   - `TELEGRAM_ALLOWED_USER_IDS` = ID-jevi korisnika kojima je dozvoljeno upisivanje,
+     odvojeni zarezom (npr. `123456789,987654321`). Samo oni mogu da šalju pozivnice
+     i da potvrde upis dugmetom Da; ostalima bot ne odgovara. U privatnom čatu je
+     korisnički ID isti kao ID čata. Ako nije podešen, važi samo `TELEGRAM_ALLOWED_CHAT_IDS`.
+   - `TELEGRAM_ALLOWED_CHAT_IDS` (opciono) = dodatno ograničava u kojim čatovima bot
+     radi (npr. samo jedna grupa). Ako su podešena oba spiska, korisnik mora da bude
+     na spisku korisnika I čat na spisku čatova.
+   - `ANTHROPIC_API_KEY` = koristi se za parsiranje pozivnica (i kad je
+     `OCR_PROVIDER=freeocr`, to je odvojena stvar od OCR-a jelovnika)
+   - `EVENT_PARSER_MODEL` (opciono) = model za parsiranje, podrazumevano `claude-haiku-5-5`
+
+   Upis događaja traži dozvolu pisanja: u `get_refresh_token.py` je scope sada
+   `calendar.events`. **Pokreni skriptu ponovo** i zameni `GOOGLE_REFRESH_TOKEN`
+   novom vrednošću (stari token ima samo čitanje i upis bi vratio grešku 403).
+
+   Povezivanje bota (jednom, posle deploy-a):
+   1. Registruj webhook (zameni vrednosti u ugličastim zagradama):
+      ```
+      curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
+        -d "url=https://jelovnik-service.onrender.com/telegram/webhook" \
+        -d "secret_token=<TELEGRAM_WEBHOOK_SECRET>" \
+        -d 'allowed_updates=["message","callback_query"]'
+      ```
+      Odgovor treba da bude `{"ok":true,...}`.
+   2. U Telegramu pošalji botu `/start`. Odgovoriće tvojim korisničkim ID-jem; upiši ga u
+      `TELEGRAM_ALLOWED_USER_IDS` na Render-u (servis se restartuje). Isto uradi i za
+      svakog dodatnog korisnika: neka pošalje `/start` i dobije svoj ID.
+   3. Pošalji botu tekst ili sliku pozivnice. Dobijaš predlog sa dugmadima Da/Ne.
+
+   Napomene: na besplatnom Render planu servis zaspi posle ~15 min, pa prva poruka
+   može da kasni do minut-dva (Telegram je ponovi sam). Predlozi koji čekaju
+   potvrdu drže se u memoriji, pa se gube ako se servis restartuje između
+   slanja pozivnice i klika na Da; tada samo pošalji pozivnicu ponovo.
+
    Bezbednost:
    - `ADMIN_TOKEN` = bilo koja duga nasumična vrednost (npr. generiši sa
      `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`).

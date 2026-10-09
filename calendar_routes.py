@@ -103,6 +103,41 @@ def _fetch_events(window_start: datetime, window_end: datetime) -> list[dict]:
     return resp.json().get("items", [])
 
 
+def create_event(event: dict) -> dict:
+    """
+    Upisuje događaj u kalendar (potreban scope calendar.events) i vraća odgovor Google-a
+    (sa linkom u polju "htmlLink").
+
+    event: {"title", "all_day", "start", "end", "location", "description"}
+           start/end: "YYYY-MM-DDTHH:MM" (Europe/Belgrade) ili "YYYY-MM-DD";
+           kod događaja celog dana "end" je poslednji dan (uključivo).
+    """
+    body = {"summary": event["title"]}
+    if event.get("location"):
+        body["location"] = event["location"]
+    if event.get("description"):
+        body["description"] = event["description"]
+
+    if event["all_day"]:
+        last_day = date.fromisoformat(event["end"])
+        body["start"] = {"date": event["start"]}
+        body["end"] = {"date": (last_day + timedelta(days=1)).isoformat()}  # Google: kraj je isključiv
+    else:
+        body["start"] = {"dateTime": event["start"] + ":00", "timeZone": "Europe/Belgrade"}
+        body["end"] = {"dateTime": event["end"] + ":00", "timeZone": "Europe/Belgrade"}
+
+    calendar_id = quote(os.environ.get("GOOGLE_CALENDAR_ID", "primary"), safe="")
+    resp = requests.post(
+        EVENTS_URL.format(cal=calendar_id),
+        headers={"Authorization": f"Bearer {_get_access_token()}"},
+        json=body,
+        timeout=15,
+    )
+    _check_google(resp, "Google Calendar insert")
+    _cache.update(data=None, ts=0.0, day=None)  # da se novi događaj odmah vidi na stranici
+    return resp.json()
+
+
 def _event_bounds(ev: dict) -> tuple[datetime, datetime, bool]:
     """Vraća (početak, kraj, ceo_dan) u beogradskoj zoni."""
     start, end = ev.get("start", {}), ev.get("end", {})

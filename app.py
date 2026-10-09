@@ -55,6 +55,10 @@ limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["60 per 
 from calendar_routes import calendar_bp  # noqa: E402  (Google Calendar endpointi)
 app.register_blueprint(calendar_bp)
 
+from telegram_routes import telegram_bp  # noqa: E402  (Telegram bot webhook)
+limiter.exempt(telegram_bp)  # pozivi dolaze sa Telegram IP adresa; štiti ih secret_token zaglavlje
+app.register_blueprint(telegram_bp)
+
 
 def require_admin(fn):
     """Štiti skupe/interne endpoint-e: bez tačnog tokena, endpoint se ponaša kao da ne postoji."""
