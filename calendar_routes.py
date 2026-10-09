@@ -40,6 +40,13 @@ _token = {"value": None, "exp": 0.0}
 _cache = {"data": None, "ts": 0.0, "day": None}
 
 
+def _check_google(resp: requests.Response, what: str) -> None:
+    """Ako Google vrati grešku, upiši status i telo odgovora u log (tu piše pravi uzrok)."""
+    if not resp.ok:
+        current_app.logger.error("%s: HTTP %s %s", what, resp.status_code, resp.text[:500])
+        resp.raise_for_status()
+
+
 # --------------------------------------------------------------------------
 # Autentikacija
 # --------------------------------------------------------------------------
@@ -65,7 +72,7 @@ def _get_access_token() -> str:
         },
         timeout=15,
     )
-    resp.raise_for_status()
+    _check_google(resp, "Google token request")
     data = resp.json()
     _token["value"] = data["access_token"]
     _token["exp"] = now + int(data.get("expires_in", 3600))
@@ -92,7 +99,7 @@ def _fetch_events(window_start: datetime, window_end: datetime) -> list[dict]:
         },
         timeout=15,
     )
-    resp.raise_for_status()
+    _check_google(resp, "Google Calendar events request")
     return resp.json().get("items", [])
 
 
