@@ -55,9 +55,9 @@
    - `TELEGRAM_ALLOWED_CHAT_IDS` (opciono) = dodatno ograničava u kojim čatovima bot
      radi (npr. samo jedna grupa). Ako su podešena oba spiska, korisnik mora da bude
      na spisku korisnika I čat na spisku čatova.
-   - `ANTHROPIC_API_KEY` = koristi se za parsiranje pozivnica (i kad je
-     `OCR_PROVIDER=freeocr`, to je odvojena stvar od OCR-a jelovnika)
-   - `EVENT_PARSER_MODEL` (opciono) = model za parsiranje, podrazumevano `claude-haiku-5-5`
+   - `FREEOCR_API_KEY` = isti freeocr.ai ključ kao za jelovnik. Bot ga koristi za slike
+     pozivnica bez obzira na `OCR_PROVIDER` (taj se odnosi samo na jelovnik). Za tekst
+     pozivnice bot ne zove nijedan spoljni servis.
 
    Upis događaja traži dozvolu pisanja: u `get_refresh_token.py` je scope sada
    `calendar.events`. **Pokreni skriptu ponovo** i zameni `GOOGLE_REFRESH_TOKEN`
@@ -76,6 +76,17 @@
       `TELEGRAM_ALLOWED_USER_IDS` na Render-u (servis se restartuje). Isto uradi i za
       svakog dodatnog korisnika: neka pošalje `/start` i dobije svoj ID.
    3. Pošalji botu tekst ili sliku pozivnice. Dobijaš predlog sa dugmadima Da/Ne.
+
+   Kako bot čita pozivnice:
+   - **Slika**: freeocr.ai `/extract` (AI izvlači naslov, datum, vreme, lokaciju i
+     detalje). Ako datum ili naslov fale, dodatno se zove `/ocr` (ceo tekst sa
+     slike), pa se tekst čita pravilima kao i obična poruka. Do 2 poziva po slici.
+   - **Tekst** (i opis uz sliku): pravila za srpske datume i vreme, bez AI-ja.
+     Razume npr. `10.10.2026.`, `31. oktobra`, `sutra`, `u subotu`, `18h`, `18:30`,
+     `18.30h`, `od 21 do 02h`, labele `Mesto:` i `Naslov:`, i ćirilicu.
+     Pravila su jednostavnija od AI-ja: kad nešto pogreše ili izostave (naslov,
+     lokacija), to se vidi u predlogu, a ti odbiješ sa Ne i pošalješ jasniju poruku.
+   - Naslovi i lokacije u kalendaru su uvek latinica.
 
    Napomene: na besplatnom Render planu servis zaspi posle ~15 min, pa prva poruka
    može da kasni do minut-dva (Telegram je ponovi sam). Predlozi koji čekaju

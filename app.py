@@ -27,10 +27,13 @@ from zoneinfo import ZoneInfo
 from urllib.request import Request, urlopen
 from urllib.parse import urljoin, urlsplit, urlunsplit, quote
 
+import freeocr_client
 import requests
 from flask import Flask, redirect, abort, jsonify, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+
+from text_utils import cyr_to_lat
 
 app = Flask(__name__)
 
@@ -82,28 +85,8 @@ ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5")
 # OCR_PROVIDER: "anthropic" (podrazumevano), "freeai" ili "freeocr"
 OCR_PROVIDER = os.environ.get("OCR_PROVIDER", "anthropic").lower()
 FREE_AI_API_KEY = os.environ.get("FREE_AI_API_KEY")
-FREEOCR_API_KEY = os.environ.get("FREEOCR_API_KEY")
 
 DANI = ["Ponedeljak", "Utorak", "Sreda", "Četvrtak", "Petak", "Subota", "Nedelja"]
-
-_CYR2LAT = {
-    "А": "A", "а": "a", "Б": "B", "б": "b", "В": "V", "в": "v", "Г": "G", "г": "g",
-    "Д": "D", "д": "d", "Ђ": "Đ", "ђ": "đ", "Е": "E", "е": "e", "Ж": "Ž", "ж": "ž",
-    "З": "Z", "з": "z", "И": "I", "и": "i", "Ј": "J", "ј": "j", "К": "K", "к": "k",
-    "Л": "L", "л": "l", "М": "M", "м": "m", "Н": "N", "н": "n", "О": "O", "о": "o",
-    "П": "P", "п": "p", "Р": "R", "р": "r", "С": "S", "с": "s", "Т": "T", "т": "t",
-    "Ћ": "Ć", "ћ": "ć", "У": "U", "у": "u", "Ф": "F", "ф": "f", "Х": "H", "х": "h",
-    "Ц": "C", "ц": "c", "Ч": "Č", "ч": "č", "Ш": "Š", "ш": "š",
-    "Љ": "Lj", "љ": "lj", "Њ": "Nj", "њ": "nj", "Џ": "Dž", "џ": "dž",
-}
-
-
-def cyr_to_lat(text: str) -> str:
-    """Prevodi srpsku ćirilicu u latinicu, karakter po karakter (digrafi lj/nj/dž uključeni).
-    Karakteri van mape (brojevi, interpunkcija, latinica) ostaju nepromenjeni."""
-    if not text:
-        return text
-    return "".join(_CYR2LAT.get(ch, ch) for ch in text)
 
 _cache = {"url": None, "ts": 0, "table": None, "table_ts": 0, "table_for_url": None}
 
@@ -261,18 +244,7 @@ def html_table_to_grid(html: str) -> list[list[str]]:
 
 def extract_menu_table_freeocr(image_bytes: bytes) -> dict:
     """Šalje sliku freeocr.ai Table API-ju (dobro dokumentovan) i mapira na naš oblik."""
-    if not FREEOCR_API_KEY:
-        raise RuntimeError("FREEOCR_API_KEY nije podešen u environment varijablama.")
-
-    resp = requests.post(
-        "https://freeocr.ai/api/v1/platform/table",
-        headers={"Authorization": f"Bearer {FREEOCR_API_KEY}"},
-        params={"format": "json"},
-        files={"image": ("jelovnik.jpg", image_bytes, "image/jpeg")},
-        timeout=60,
-    )
-    resp.raise_for_status()
-    data = resp.json()
+    data = freeocr_client.post_json("table", image_bytes, "image/jpeg", params={"format": "json"})
     tables = data.get("tables") or []
     if not tables:
         raise ValueError("freeocr.ai nije pronašao nijednu tabelu na slici.")
@@ -565,15 +537,9 @@ def debug_ocr():
             except Exception as e:
                 out["mapping_error"] = str(e)
         elif OCR_PROVIDER == "freeocr":
-            if not FREEOCR_API_KEY:
+            if not freeocr_client.is_configured():
                 return jsonify({"greska": "FREEOCR_API_KEY nije podešen."}), 500
-            resp = requests.post(
-                "https://freeocr.ai/api/v1/platform/table",
-                headers={"Authorization": f"Bearer {FREEOCR_API_KEY}"},
-                params={"format": "json"},
-                files={"image": ("jelovnik.jpg", img_bytes, "image/jpeg")},
-                timeout=60,
-            )
+            resp = freeocr_client.request("table", img_bytes, "image/jpeg", params={"format": "json"})
             out["status_code"] = resp.status_code
             out["raw_response"] = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else resp.text[:2000]
             try:

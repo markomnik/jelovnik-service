@@ -11,7 +11,7 @@ Environment varijable:
     TELEGRAM_ALLOWED_USER_IDS   ID-jevi korisnika kojima je dozvoljeno upisivanje, odvojeni zarezom
     TELEGRAM_ALLOWED_CHAT_IDS   (opciono) dodatno suzi bota na ove čatove; ako USER_IDS nije
                                 podešen, važi samo ovaj spisak
-    ANTHROPIC_API_KEY           za parsiranje pozivnica (vidi event_parser.py)
+    FREEOCR_API_KEY             za čitanje slika pozivnica (vidi event_parser.py, freeocr_client.py)
 
 Registracija u app.py:
     from telegram_routes import telegram_bp
@@ -48,7 +48,9 @@ _seen_updates: deque = deque(maxlen=500)   # Telegram ume da ponovi isti update 
 HELP_TEXT = (
     "Pošalji mi tekst ili sliku pozivnice. Izvući ću naslov, datum, vreme i lokaciju, "
     "pokazati ti predlog, a ti potvrdiš sa Da ili Ne. Na Da upisujem događaj u kalendar.\n\n"
-    "Slika može da ima i opis (tekst ispod slike), npr. \"sutra u 18h\", ako na pozivnici nema datuma."
+    "Slika može da ima i opis (tekst ispod slike), npr. \"sutra u 18h\", ako na pozivnici nema datuma.\n\n"
+    "Za tekst: datum piši kao 10.10.2026. ili \"sutra\", \"u subotu\", a vreme kao 18h ili 18:30. "
+    "Lokaciju možeš da navedeš kao \"Mesto: ...\"."
 )
 
 
