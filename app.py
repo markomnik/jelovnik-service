@@ -4,7 +4,8 @@ Info ekran - pozadinski servis (Flask).
 Ovaj fajl samo sastavlja aplikaciju; sva logika je u modulima:
     menu_routes.py      jelovnik vrtića (/jelovnik/vrtic*), uz menu_scraper, menu_table, menu_service
     calendar_routes.py  Google Calendar (/calendar/next-days)
-    telegram_routes.py  Telegram bot (/telegram/webhook), uz event_parser
+    telegram_routes.py  Telegram bot (/telegram/webhook), uz telegram_handlers, telegram_proposals,
+                        telegram_auth, telegram_api i event_parser (event_text, event_image, ...)
     admin_routes.py     health (/) i dijagnostika (/debug, /debug-ocr)
     security.py         zaglavlja/CORS i zaštita admin endpointa
     extensions.py       limiter (ograničenje broja zahteva)

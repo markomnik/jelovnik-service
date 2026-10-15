@@ -1,13 +1,15 @@
 import unittest
 from datetime import datetime
 
-import event_parser as ep
+import event_normalize
+from config import TZ
+from event_errors import ParseError
 
-NOW = datetime(2026, 10, 9, 12, 0, tzinfo=ep.TZ)
+NOW = datetime(2026, 10, 9, 12, 0, tzinfo=TZ)
 
 
 def normalize(**raw):
-    return ep.normalize_event(raw, NOW)
+    return event_normalize.normalize_event(raw, NOW)
 
 
 class NormalizeEventTest(unittest.TestCase):
@@ -39,14 +41,14 @@ class NormalizeEventTest(unittest.TestCase):
         self.assertEqual(normalize(title="  ", start_date="2026-10-10", start_time="10:00")["title"], "Događaj")
 
     def test_nije_pozivnica(self):
-        with self.assertRaises(ep.ParseError) as ctx:
+        with self.assertRaises(ParseError) as ctx:
             normalize(is_event=False, notes="Ovo je račun.")
         self.assertEqual(str(ctx.exception), "Ovo je račun.")
 
     def test_bez_datuma(self):
         for raw in ({"title": "X"}, {"title": "X", "start_date": "nije datum"}):
-            with self.assertRaises(ep.ParseError):
-                ep.normalize_event(raw, NOW)
+            with self.assertRaises(ParseError):
+                event_normalize.normalize_event(raw, NOW)
 
     def test_opis_se_skracuje(self):
         self.assertEqual(len(normalize(title="X", start_date="2026-10-10", description="a" * 900)["description"]), 500)

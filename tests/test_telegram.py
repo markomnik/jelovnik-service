@@ -3,7 +3,11 @@ from unittest import mock
 
 import requests
 
+import telegram_api
+import telegram_handlers
+import telegram_proposals
 import telegram_routes as tr
+from event_errors import ParseError
 from tests.support import make_client, patch_env
 
 EVENT = {"title": "Rođendan Mile", "all_day": False, "start": "2026-10-10T18:00", "end": "2026-10-10T19:00",
@@ -15,17 +19,19 @@ class TelegramBase(unittest.TestCase):
     def setUp(self):
         patch_env(self, TELEGRAM_BOT_TOKEN="123:TEST", TELEGRAM_WEBHOOK_SECRET="tajna_123",
                   TELEGRAM_ALLOWED_USER_IDS="111", TELEGRAM_ALLOWED_CHAT_IDS="")
-        tr._pending.clear()
+        telegram_proposals.clear()
         tr._seen_updates.clear()
         self.client = make_client()
         self.calls = []
         self.created = []
-        for name, value in (("_tg", mock.Mock(side_effect=lambda m, **p: self.calls.append((m, p)) or {"ok": True})),
-                            ("_download_file", mock.Mock(return_value=b"\xff\xd8\xffFAKE")),
-                            ("parse_event", mock.Mock(return_value=dict(EVENT))),
-                            ("create_event", mock.Mock(side_effect=lambda ev: self.created.append(ev) or {"htmlLink": "https://cal/x"}))):
-            patcher = mock.patch.object(tr, name, value)
-            setattr(self, name.strip("_") + "_mock", patcher.start())
+        for module, name, attr, value in (
+                (telegram_api, "call", "tg_mock", mock.Mock(side_effect=lambda m, **p: self.calls.append((m, p)) or {"ok": True})),
+                (telegram_api, "download_file", "download_file_mock", mock.Mock(return_value=b"\xff\xd8\xffFAKE")),
+                (telegram_handlers, "parse_event", "parse_event_mock", mock.Mock(return_value=dict(EVENT))),
+                (telegram_handlers, "create_event", "create_event_mock",
+                 mock.Mock(side_effect=lambda ev: self.created.append(ev) or {"htmlLink": "https://cal/x"}))):
+            patcher = mock.patch.object(module, name, value)
+            setattr(self, attr, patcher.start())
             self.addCleanup(patcher.stop)
         self.update_id = 0
 
@@ -150,7 +156,7 @@ class ProposalFlowTest(TelegramBase):
         with self.assertLogs("app", level="ERROR"):
             self.callback(yes)
         self.assertIn("calendar.events", self.sent("answerCallbackQuery")[0]["text"])
-        self.assertIn(yes.split(":")[1], tr._pending)   # može ponovo kad se token ispravi
+        self.assertTrue(telegram_proposals.has(yes.split(":")[1]))   # može ponovo kad se token ispravi
 
 
 class InputTest(TelegramBase):
@@ -166,8 +172,15 @@ class InputTest(TelegramBase):
                                "document": {"file_id": "dok", "mime_type": "image/png"}}})
         self.assertEqual(self.parse_event_mock.call_args.kwargs["image"][1], "image/png")
 
+    def test_greska_preuzimanja_slike_se_pokazuje_korisniku(self):
+        self.download_file_mock.side_effect = telegram_api.TelegramError("Nisam uspeo da preuzmem sliku sa Telegrama.")
+        self.calls.clear()
+        self.post({"message": {"chat": {"id": 111}, "from": {"id": 111}, "photo": [{"file_id": "f", "width": 9, "height": 9}]}})
+        self.assertEqual(self.sent()[0]["text"], "⚠️ Nisam uspeo da preuzmem sliku sa Telegrama.")
+        self.parse_event_mock.assert_not_called()
+
     def test_greska_parsera_se_pokazuje_korisniku(self):
-        self.parse_event_mock.side_effect = tr.ParseError("Nisam uspeo da pronađem datum događaja.")
+        self.parse_event_mock.side_effect = ParseError("Nisam uspeo da pronađem datum događaja.")
         self.calls.clear()
         self.message("nešto")
         self.assertEqual(self.sent()[0]["text"], "⚠️ Nisam uspeo da pronađem datum događaja.")

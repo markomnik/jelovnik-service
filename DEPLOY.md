@@ -142,8 +142,20 @@ menu_table.py        tabela sa slike -> dani i obroci (latinica)
 admin_routes.py      / (health), /debug, /debug-ocr
 
 calendar_routes.py   Google Calendar: /calendar/next-days i upis događaja
-telegram_routes.py   Telegram bot: /telegram/webhook
-event_parser.py      pozivnica (tekst ili slika) -> parametri događaja
+
+telegram_routes.py   Telegram bot: samo prima i proverava zahtev (/telegram/webhook)
+telegram_handlers.py obrada poruka i klikova Da/Ne (poslovna logika bota)
+telegram_proposals.py  tekst predloga i predlozi koji čekaju potvrdu
+telegram_auth.py     ko sme da koristi bota (TELEGRAM_ALLOWED_*_IDS)
+telegram_api.py      pozivi ka Telegram Bot API-ju
+
+event_parser.py      pozivnica (tekst ili slika) -> parametri događaja; povezuje delove ispod
+event_text.py        tekst -> polja (pravila za srpski)
+event_datetime.py    datumi i vremena u tekstu (10.10., sutra, u subotu, 18h, 18:30...)
+event_image.py       slika -> polja (freeocr.ai /extract, rezerva /ocr)
+event_fields.py      spajanje polja iz više izvora
+event_normalize.py   provera polja i računanje početka i kraja
+event_errors.py      ParseError (poruka se sme prikazati korisniku)
 
 freeocr_client.py    klijent za freeocr.ai (koriste ga jelovnik i bot)
 text_utils.py        transliteracija ćirilice u latinicu
