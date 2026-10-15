@@ -10,9 +10,7 @@ Potrebne environment varijable (vrednosti daje get_refresh_token.py):
     GOOGLE_REFRESH_TOKEN
     GOOGLE_CALENDAR_ID      (opciono, podrazumevano "primary")
 
-Registracija u app.py:
-    from calendar_routes import calendar_bp
-    app.register_blueprint(calendar_bp)
+Blueprint se registruje u app.create_app().
 
 Napomena: fajl se zove calendar_routes.py, a ne calendar.py, da ne bi zasenio
 istoimeni modul iz Python standardne biblioteke.
@@ -22,19 +20,18 @@ import os
 import time
 from datetime import date, datetime, timedelta
 from urllib.parse import quote
-from zoneinfo import ZoneInfo
 
 import requests
 from flask import Blueprint, current_app, jsonify
 
+from config import DAY_SHORT, TIMEZONE_NAME, TZ
+
 calendar_bp = Blueprint("calendar", __name__)
 
-TZ = ZoneInfo("Europe/Belgrade")
 DAYS_AHEAD = 4                   # danas + 3 naredna dana
 CACHE_TTL_SECONDS = 5 * 60       # koliko dugo čuvamo odgovor Google-a
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 EVENTS_URL = "https://www.googleapis.com/calendar/v3/calendars/{cal}/events"
-DAY_SHORT = ["Pon", "Uto", "Sre", "Čet", "Pet", "Sub", "Ned"]
 
 _token = {"value": None, "exp": 0.0}
 _cache = {"data": None, "ts": 0.0, "day": None}
@@ -95,7 +92,7 @@ def _fetch_events(window_start: datetime, window_end: datetime) -> list[dict]:
             "singleEvents": "true",
             "orderBy": "startTime",
             "maxResults": 100,
-            "timeZone": "Europe/Belgrade",
+            "timeZone": TIMEZONE_NAME,
         },
         timeout=15,
     )
@@ -123,8 +120,8 @@ def create_event(event: dict) -> dict:
         body["start"] = {"date": event["start"]}
         body["end"] = {"date": (last_day + timedelta(days=1)).isoformat()}  # Google: kraj je isključiv
     else:
-        body["start"] = {"dateTime": event["start"] + ":00", "timeZone": "Europe/Belgrade"}
-        body["end"] = {"dateTime": event["end"] + ":00", "timeZone": "Europe/Belgrade"}
+        body["start"] = {"dateTime": event["start"] + ":00", "timeZone": TIMEZONE_NAME}
+        body["end"] = {"dateTime": event["end"] + ":00", "timeZone": TIMEZONE_NAME}
 
     calendar_id = quote(os.environ.get("GOOGLE_CALENDAR_ID", "primary"), safe="")
     resp = requests.post(

@@ -13,9 +13,7 @@ Environment varijable:
                                 podešen, važi samo ovaj spisak
     FREEOCR_API_KEY             za čitanje slika pozivnica (vidi event_parser.py, freeocr_client.py)
 
-Registracija u app.py:
-    from telegram_routes import telegram_bp
-    app.register_blueprint(telegram_bp)
+Blueprint se registruje u app.create_app().
 
 Napomena: čekajući predlozi se drže u memoriji procesa. Ako se servis restartuje
 (deploy, uspavljivanje na besplatnom planu), nepotvrđeni predlozi se gube i korisnik
@@ -33,7 +31,8 @@ from datetime import datetime
 import requests
 from flask import Blueprint, current_app, jsonify, request
 
-from calendar_routes import DAY_SHORT, create_event
+from calendar_routes import create_event
+from config import DAY_SHORT
 from event_parser import ParseError, parse_event
 
 telegram_bp = Blueprint("telegram", __name__)

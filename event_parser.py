@@ -21,13 +21,12 @@ Modul ne zavisi od Flask-a.
 
 import re
 from datetime import date, datetime, time as dtime, timedelta
-from zoneinfo import ZoneInfo
 
 import freeocr_client
+from config import TZ
 from freeocr_client import FreeOCRError
 from text_utils import cyr_to_lat
 
-TZ = ZoneInfo("Europe/Belgrade")
 ALLOWED_MEDIA_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 EXTRACT_FIELDS = ["title", "date", "start_time", "end_time", "location", "details"]

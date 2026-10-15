@@ -1,8 +1,8 @@
 # Deploy (Render.com — besplatno)
 
-1. Napravi novi GitHub repo (npr. `jelovnik-service`) i ubaci u njega:
-   - `app.py`
-   - `requirements.txt`
+1. Napravi novi GitHub repo (npr. `jelovnik-service`) i ubaci u njega ceo sadržaj ovog
+   projekta: sve `.py` fajlove u korenu, `requirements.txt` i folder `tests/`
+   (struktura je opisana na kraju ovog fajla).
 
 2. Idi na https://render.com → sign up (može preko GitHub naloga) → **New +** → **Web Service**.
 
@@ -14,25 +14,20 @@
    - **Start Command**: `gunicorn app:app --timeout 120`
 
    (Podrazumevani gunicorn worker timeout je 30s, a OCR obrada slike kod
-   freeocr.ai/anthropic-a može trajati duže od toga — bez ovoga gunicorn
+   freeocr.ai može trajati duže od toga — bez ovoga gunicorn
    ubija worker usred zahteva i vraća goli "500" bez ikakve poruke.)
    - **Instance Type**: Free
 
 5. **Environment Variables** (Render → tvoj servis → Environment):
 
-   Za Anthropic (podrazumevano):
-   - `ANTHROPIC_API_KEY` = tvoj Anthropic API ključ (console.anthropic.com → API Keys)
-   - `ANTHROPIC_MODEL` (opciono) = npr. `claude-sonnet-5` (podrazumevano) ili `claude-haiku-4-5-20251001`
-
-   Za Free.ai (besplatna alternativa, ali besplatni model slabo čita ćirilicu):
-   - `OCR_PROVIDER` = `freeai`
-   - `FREE_AI_API_KEY` = tvoj Free.ai API ključ (free.ai/account/?tab=api)
-
-   Za freeocr.ai (preporučeno — dobro dokumentovan API, 50 besplatnih poziva
-   pri registraciji, zatim $1 / 500 poziva — naša potrošnja je ~4 poziva
-   mesečno, pošto se tabela kešira 7 dana):
-   - `OCR_PROVIDER` = `freeocr`
+   Za čitanje slika (jelovnik i pozivnice u Telegram botu), freeocr.ai — 50 besplatnih
+   poziva pri registraciji, zatim $1 / 500 poziva; jelovnik troši ~4 poziva mesečno,
+   pošto se tabela kešira 7 dana:
    - `FREEOCR_API_KEY` = tvoj API ključ sa freeocr.ai/platform/keys
+
+   (Ranije podržani provajderi free.ai i Anthropic su uklonjeni, pa varijable
+   `OCR_PROVIDER`, `FREE_AI_API_KEY`, `ANTHROPIC_API_KEY` i `ANTHROPIC_MODEL`
+   više ne treba da postoje na Render-u; možeš da ih obrišeš.)
 
    Google Calendar (vrednosti dobijaš iz `get_refresh_token.py`):
    - `GOOGLE_CLIENT_ID`
@@ -55,9 +50,8 @@
    - `TELEGRAM_ALLOWED_CHAT_IDS` (opciono) = dodatno ograničava u kojim čatovima bot
      radi (npr. samo jedna grupa). Ako su podešena oba spiska, korisnik mora da bude
      na spisku korisnika I čat na spisku čatova.
-   - `FREEOCR_API_KEY` = isti freeocr.ai ključ kao za jelovnik. Bot ga koristi za slike
-     pozivnica bez obzira na `OCR_PROVIDER` (taj se odnosi samo na jelovnik). Za tekst
-     pozivnice bot ne zove nijedan spoljni servis.
+   - `FREEOCR_API_KEY` = isti freeocr.ai ključ kao za jelovnik, koristi se za slike
+     pozivnica. Za tekst pozivnice bot ne zove nijedan spoljni servis.
 
    Upis događaja traži dozvolu pisanja: u `get_refresh_token.py` je scope sada
    `calendar.events`. **Pokreni skriptu ponovo** i zameni `GOOGLE_REFRESH_TOKEN`
@@ -98,18 +92,13 @@
      `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`).
      Bez ovoga, `/debug` i `/debug-ocr` su potpuno ugašeni (vraćaju 404) —
      to su interni dijagnostički endpointi koji realno troše novac
-     (pokreću OCR poziv), pa ne treba da budu javno dostupni. Sa tokenom,
-     pristupaš im kao `.../debug-ocr?token=TVOJ_TOKEN`.
+     (`/debug-ocr` pokreće OCR poziv), pa ne treba da budu javno dostupni. Sa tokenom,
+     pristupaš im kao `.../debug-ocr?token=TVOJ_TOKEN` (ili zaglavljem `X-Admin-Token`).
+     `/debug-ocr` pokazuje sirov odgovor freeocr.ai-ja i rezultat mapiranja dana i obroka.
    - `ALLOWED_ORIGIN` (opciono) = tačan origin tvoje objavljene stranice
      (npr. `https://claude.site`), umesto podrazumevanog `*`. Suzuje ko
      sme da pročita JSON odgovor preko browser fetch-a sa druge stranice.
      Nije kritično (podaci nisu osetljivi), ali je dobra praksa.
-
-   **Napomena (Free.ai):** tačan oblik Free.ai JSON odgovora za tabele nije bio
-   javno dokumentovan u trenutku pisanja, pa postoji `/debug-ocr` endpoint koji
-   pokazuje sirov odgovor i rezultat mapiranja na naš format (dani × obroci).
-   `/debug-ocr` radi i za `freeocr` provider — otvori ga posle deploy-a i
-   pošalji rezultat ako mapiranje ne pogodi dane/obroke tačno.
 
 6. Klikni **Create Web Service**. Za par minuta dobićeš URL oblika:
    `https://jelovnik-service.onrender.com`
@@ -122,7 +111,7 @@
 ## Cena AI čitanja
 
 Tabela se čita samo jednom nedeljno (keširano 7 dana), tako da je trošak
-zanemarljiv — par centi mesečno na Anthropic API-ju.
+zanemarljiv: oko 4 OCR poziva mesečno (plus do 2 po svakoj slici pozivnice u botu).
 
 ## Napomena o besplatnom planu
 
@@ -136,4 +125,40 @@ jednom nedeljno) to je sasvim u redu.
 - **Fly.io** (besplatan mali plan, malo više podešavanja)
 - **Railway** (besplatan kredit mesečno)
 
-Sve tri rade sa istim `app.py` fajlom, bez izmena.
+Sve tri rade sa istim kodom, bez izmena (start komanda je `gunicorn app:app`).
+
+## Struktura projekta
+
+```
+app.py               sastavlja aplikaciju (create_app); sve ostalo je u modulima
+config.py            vremenska zona (Europe/Belgrade) i nazivi dana
+extensions.py        limiter (ograničenje broja zahteva)
+security.py          bezbednosna zaglavlja/CORS i zaštita admin endpointa tokenom
+
+menu_routes.py       rute /jelovnik/vrtic, /jelovnik/vrtic/danas, /jelovnik/vrtic/nedelja
+menu_service.py      keš: URL slike (6h) i pročitana tabela (7 dana)
+menu_scraper.py      pronalazi sliku jelovnika na sajtu vrtića
+menu_table.py        tabela sa slike -> dani i obroci (latinica)
+admin_routes.py      / (health), /debug, /debug-ocr
+
+calendar_routes.py   Google Calendar: /calendar/next-days i upis događaja
+telegram_routes.py   Telegram bot: /telegram/webhook
+event_parser.py      pozivnica (tekst ili slika) -> parametri događaja
+
+freeocr_client.py    klijent za freeocr.ai (koriste ga jelovnik i bot)
+text_utils.py        transliteracija ćirilice u latinicu
+get_refresh_token.py jednokratna skripta za Google token (pokreće se lokalno)
+tests/               automatski testovi
+```
+
+## Testovi
+
+Ne koriste mrežu (svi HTTP pozivi su zamenjeni lažnim odgovorima) i ne traže nikakve
+ključeve. Iz korena projekta:
+
+```
+pip install -r requirements.txt
+python -m unittest discover -s tests -t .
+```
+
+Pokreni ih posle svake izmene koda, pre push-a na GitHub.
