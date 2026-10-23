@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+
+# tajne vrednosti: nikad na GitHub
+client_secret*.json

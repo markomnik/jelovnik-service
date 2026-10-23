@@ -1,16 +1,15 @@
 """
 Info ekran - pozadinski servis (Flask).
 
-Ovaj fajl samo sastavlja aplikaciju; sva logika je u modulima:
-    menu_routes.py      jelovnik vrtića (/jelovnik/vrtic*), uz menu_scraper, menu_table, menu_service
-    calendar_routes.py  Google Calendar (/calendar/next-days)
-    telegram_routes.py  Telegram bot (/telegram/webhook), uz telegram_handlers, telegram_proposals,
-                        telegram_auth, telegram_api i event_parser (event_text, event_image, ...)
-    admin_routes.py     health (/) i dijagnostika (/debug, /debug-ocr)
-    security.py         zaglavlja/CORS i zaštita admin endpointa
-    extensions.py       limiter (ograničenje broja zahteva)
-    freeocr_client.py   klijent za freeocr.ai, deli ga jelovnik i bot
-    config.py           vremenska zona i nazivi dana
+Ovaj fajl samo sastavlja aplikaciju; sva logika je u folderima:
+    menu/             jelovnik vrtića: /jelovnik/vrtic* (scraper, table, service, routes)
+    google_calendar/  Google Calendar: /calendar/next-days i upis događaja
+    telegram_bot/     Telegram bot: /telegram/webhook (api, auth, proposals, handlers, routes)
+    events/           pozivnica (tekst ili slika) -> parametri događaja
+    admin/            health (/) i dijagnostika (/debug, /debug-ocr)
+    core/             konfiguracija, limiter, bezbednost, tekst, klijent za freeocr.ai
+    scripts/          jednokratne skripte (Google token)
+    tests/            automatski testovi
 
 Pokretanje lokalno:
     pip install -r requirements.txt
@@ -21,12 +20,12 @@ Na Render-u: gunicorn app:app --timeout 120 (vidi DEPLOY.md).
 
 from flask import Flask
 
-from admin_routes import admin_bp
-from calendar_routes import calendar_bp
-from extensions import limiter
-from menu_routes import menu_bp
-from security import init_security
-from telegram_routes import telegram_bp
+from admin.routes import admin_bp
+from core.extensions import limiter
+from core.security import init_security
+from google_calendar.routes import calendar_bp
+from menu.routes import menu_bp
+from telegram_bot.routes import telegram_bp
 
 
 def create_app(config: dict | None = None) -> Flask:

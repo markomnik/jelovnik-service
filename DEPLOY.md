@@ -1,7 +1,8 @@
 # Deploy (Render.com — besplatno)
 
 1. Napravi novi GitHub repo (npr. `jelovnik-service`) i ubaci u njega ceo sadržaj ovog
-   projekta: sve `.py` fajlove u korenu, `requirements.txt` i folder `tests/`
+   projekta: `app.py`, `requirements.txt`, `.gitignore`, `DEPLOY.md` i sve foldere (`core/`, `menu/`, `events/`,
+   `google_calendar/`, `telegram_bot/`, `admin/`, `scripts/`, `tests/`)
    (struktura je opisana na kraju ovog fajla).
 
 2. Idi na https://render.com → sign up (može preko GitHub naloga) → **New +** → **Web Service**.
@@ -29,14 +30,14 @@
    `OCR_PROVIDER`, `FREE_AI_API_KEY`, `ANTHROPIC_API_KEY` i `ANTHROPIC_MODEL`
    više ne treba da postoje na Render-u; možeš da ih obrišeš.)
 
-   Google Calendar (vrednosti dobijaš iz `get_refresh_token.py`):
+   Google Calendar (vrednosti dobijaš iz `scripts/get_refresh_token.py`):
    - `GOOGLE_CLIENT_ID`
    - `GOOGLE_CLIENT_SECRET`
    - `GOOGLE_REFRESH_TOKEN`
    - `GOOGLE_CALENDAR_ID` (opciono, podrazumevano `primary`)
 
    Endpoint: `GET /calendar/next-days` (danas + 3 naredna dana, kod je u
-   `calendar_routes.py`). Sve tri Google vrednosti su tajne - samo u Render
+   `google_calendar/routes.py`). Sve tri Google vrednosti su tajne - samo u Render
    Environment, nikad u repozitorijum.
 
    Telegram bot (pozivnice -> kalendar):
@@ -53,7 +54,7 @@
    - `FREEOCR_API_KEY` = isti freeocr.ai ključ kao za jelovnik, koristi se za slike
      pozivnica. Za tekst pozivnice bot ne zove nijedan spoljni servis.
 
-   Upis događaja traži dozvolu pisanja: u `get_refresh_token.py` je scope sada
+   Upis događaja traži dozvolu pisanja: u `scripts/get_refresh_token.py` je scope sada
    `calendar.events`. **Pokreni skriptu ponovo** i zameni `GOOGLE_REFRESH_TOKEN`
    novom vrednošću (stari token ima samo čitanje i upis bi vratio grešku 403).
 
@@ -129,39 +130,54 @@ Sve tri rade sa istim kodom, bez izmena (start komanda je `gunicorn app:app`).
 
 ## Struktura projekta
 
+Render pokreće `gunicorn app:app --timeout 120` iz korena repozitorijuma (ništa se nije menjalo).
+
 ```
-app.py               sastavlja aplikaciju (create_app); sve ostalo je u modulima
-config.py            vremenska zona (Europe/Belgrade) i nazivi dana
-extensions.py        limiter (ograničenje broja zahteva)
-security.py          bezbednosna zaglavlja/CORS i zaštita admin endpointa tokenom
+app.py                  sastavlja aplikaciju (create_app); sva logika je u folderima
 
-menu_routes.py       rute /jelovnik/vrtic, /jelovnik/vrtic/danas, /jelovnik/vrtic/nedelja
-menu_service.py      keš: URL slike (6h) i pročitana tabela (7 dana)
-menu_scraper.py      pronalazi sliku jelovnika na sajtu vrtića
-menu_table.py        tabela sa slike -> dani i obroci (latinica)
-admin_routes.py      / (health), /debug, /debug-ocr
+core/                   zajednički delovi
+  config.py               vremenska zona (Europe/Belgrade) i nazivi dana
+  extensions.py           limiter (ograničenje broja zahteva)
+  security.py             bezbednosna zaglavlja/CORS i zaštita admin endpointa tokenom
+  text_utils.py           transliteracija ćirilice u latinicu
+  freeocr_client.py       klijent za freeocr.ai (koriste ga jelovnik i bot)
 
-calendar_routes.py   Google Calendar: /calendar/next-days i upis događaja
+menu/                   jelovnik vrtića
+  routes.py               /jelovnik/vrtic, /jelovnik/vrtic/danas, /jelovnik/vrtic/nedelja
+  service.py              keš: URL slike (6h) i pročitana tabela (7 dana)
+  scraper.py              pronalazi sliku jelovnika na sajtu vrtića
+  table.py                tabela sa slike -> dani i obroci (latinica)
 
-telegram_routes.py   Telegram bot: samo prima i proverava zahtev (/telegram/webhook)
-telegram_handlers.py obrada poruka i klikova Da/Ne (poslovna logika bota)
-telegram_proposals.py  tekst predloga i predlozi koji čekaju potvrdu
-telegram_auth.py     ko sme da koristi bota (TELEGRAM_ALLOWED_*_IDS)
-telegram_api.py      pozivi ka Telegram Bot API-ju
+google_calendar/        Google Calendar
+  routes.py               /calendar/next-days i upis događaja
 
-event_parser.py      pozivnica (tekst ili slika) -> parametri događaja; povezuje delove ispod
-event_text.py        tekst -> polja (pravila za srpski)
-event_datetime.py    datumi i vremena u tekstu (10.10., sutra, u subotu, 18h, 18:30...)
-event_image.py       slika -> polja (freeocr.ai /extract, rezerva /ocr)
-event_fields.py      spajanje polja iz više izvora
-event_normalize.py   provera polja i računanje početka i kraja
-event_errors.py      ParseError (poruka se sme prikazati korisniku)
+telegram_bot/           Telegram bot
+  routes.py               prima i proverava zahtev (/telegram/webhook)
+  handlers.py             obrada poruka i klikova Da/Ne (poslovna logika bota)
+  proposals.py            tekst predloga i predlozi koji čekaju potvrdu
+  auth.py                 ko sme da koristi bota (TELEGRAM_ALLOWED_*_IDS)
+  api.py                  pozivi ka Telegram Bot API-ju
 
-freeocr_client.py    klijent za freeocr.ai (koriste ga jelovnik i bot)
-text_utils.py        transliteracija ćirilice u latinicu
-get_refresh_token.py jednokratna skripta za Google token (pokreće se lokalno)
-tests/               automatski testovi
+events/                 pozivnica (tekst ili slika) -> parametri događaja
+  parser.py               ulazna tačka parse_event(); povezuje ostale delove
+  text.py                 tekst -> polja (pravila za srpski)
+  datetime_text.py        datumi i vremena u tekstu (10.10., sutra, u subotu, 18h, 18:30...)
+  image.py                slika -> polja (freeocr.ai /extract, rezerva /ocr)
+  fields.py               spajanje polja iz više izvora
+  normalize.py            provera polja i računanje početka i kraja
+  errors.py               ParseError (poruka se sme prikazati korisniku)
+
+admin/
+  routes.py               / (health), /debug, /debug-ocr
+
+scripts/
+  get_refresh_token.py    jednokratna skripta za Google token (pokreće se lokalno)
+
+tests/                  automatski testovi; folderi odgovaraju folderima koda
 ```
+
+Nazivi foldera namerno nisu `calendar` i `telegram`: `calendar` bi zasenio istoimeni modul
+iz Python standardne biblioteke, a `telegram` istoimenu popularnu biblioteku.
 
 ## Testovi
 
